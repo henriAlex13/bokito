@@ -3,6 +3,7 @@ Configuration centrale du traitement SWIFT.
 Tous les chemins et constantes se trouvent ici.
 """
 import os
+from datetime import datetime
 
 # ============================================================
 # CHEMINS SOURCES (à ajuster selon environnement)
@@ -61,6 +62,11 @@ DAYS_THRESHOLD_NO_MATCH = 10
 # Nombre max de pages PDF à lire pour l'extraction
 MX103_MAX_PAGES = 2
 MT910_MAX_PAGES = 1
+
+# Date à partir de laquelle les fichiers sont traités (filtrage sur mtime).
+# Les fichiers modifiés AVANT cette date sont ignorés (gain de perf majeur sur gros volumes).
+# Format : datetime(année, mois, jour [, heure, minute, seconde])
+START_DATE = datetime(2026, 1, 1)
 
 # ============================================================
 # LOGGING

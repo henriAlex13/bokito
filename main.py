@@ -4,7 +4,7 @@ Point d'entrée du traitement SWIFT.
 Flux :
 1. Initialisation (logs, CSV)
 2. Indexation des fichiers source (MX103 et MT910)
-3. Extraction des nouveaux PDF -> CSV
+3. Extraction des nouveaux PDF -> CSV (avec filtre mtime >= START_DATE)
 4. Matching MX103 <-> MT910
 5. Copie des fichiers matchés (MATCH/) et non matchés vieux (PAS_MATCH/)
 """
@@ -17,6 +17,7 @@ from config import (
     MX103_PATH, MT910_PATH,
     MX103_CSV, MT910_CSV,
     MX103_SUBDIR_FILTERS, MT910_SUBDIR_FILTERS,
+    START_DATE,
 )
 from storage import (
     init_csv_files,
@@ -60,32 +61,59 @@ def extract_new_pdfs(source_index, csv_path, extract_func,
                      subdir_filters, already_processed, no_read_set):
     """
     Parcourt l'index des fichiers source, extrait ceux qui :
-    - sont dans un sous-dossier matchant un des filtres
+    - sont des PDF
     - n'ont pas déjà été traités
     - ne sont pas dans le log NO_read
+    - sont dans un sous-dossier matchant un des filtres
+    - ont une date de modification (mtime) >= START_DATE
 
     Returns:
         Liste de dicts (records) à insérer dans le CSV.
     """
     new_records = []
+    start_ts = START_DATE.timestamp()  # conversion en timestamp pour comparaison rapide
+
+    # Compteurs pour le log de fin
+    skipped_too_old = 0
+    skipped_already = 0
+    skipped_no_read = 0
+    skipped_subdir = 0
+    skipped_extension = 0
+    skipped_mtime_error = 0
 
     for filename, filepath in source_index.items():
         # Filtre extension
         if not filename.lower().endswith('.pdf'):
+            skipped_extension += 1
             continue
 
         # Filtre déjà traité
         if filename in already_processed:
+            skipped_already += 1
             continue
 
         # Filtre déjà identifié comme illisible
         if filepath in no_read_set:
+            skipped_no_read += 1
             continue
 
-        # Filtre sous-dossier (au moins un des filtres doit matcher)
+        # Filtre sous-dossier
         path_low = filepath.lower()
         if not any(all(f.lower() in path_low for f in flt)
                    for flt in subdir_filters):
+            skipped_subdir += 1
+            continue
+
+        # Filtre date de modification >= START_DATE
+        try:
+            mtime = os.path.getmtime(filepath)
+        except OSError as e:
+            logger.warning(f"Impossible de lire mtime pour {filepath}: {e}")
+            skipped_mtime_error += 1
+            continue
+
+        if mtime < start_ts:
+            skipped_too_old += 1
             continue
 
         # Extraction
@@ -95,6 +123,16 @@ def extract_new_pdfs(source_index, csv_path, extract_func,
             continue
 
         new_records.append(info)
+
+    logger.info(
+        f"Filtrage : {len(new_records)} retenu(s), "
+        f"{skipped_already} déjà traité(s), "
+        f"{skipped_too_old} trop ancien(s), "
+        f"{skipped_no_read} déjà NO_read, "
+        f"{skipped_subdir} hors sous-dossier, "
+        f"{skipped_extension} non-PDF, "
+        f"{skipped_mtime_error} erreur mtime"
+    )
 
     return new_records
 
@@ -139,6 +177,7 @@ def process_message_type(label, source_path, csv_path, extract_func,
 def main():
     setup_logging()
     logger.info(f"========== Démarrage : {datetime.now()} ==========")
+    logger.info(f"Filtre date : fichiers modifiés depuis {START_DATE}")
 
     # 1. Préparation
     os.makedirs(OUTPUT_PATH, exist_ok=True)
