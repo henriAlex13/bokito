@@ -3,8 +3,8 @@ Point d'entrée du traitement SWIFT.
 
 Flux :
 1. Initialisation (logs, CSV)
-2. Indexation des fichiers source (MX103 et MT910)
-3. Extraction des nouveaux PDF -> CSV (avec filtre mtime >= START_DATE)
+2. Indexation des fichiers source avec filtre mtime >= START_DATE (gain perf majeur)
+3. Extraction des nouveaux PDF -> CSV
 4. Matching MX103 <-> MT910
 5. Copie des fichiers matchés (MATCH/) et non matchés vieux (PAS_MATCH/)
 """
@@ -65,21 +65,19 @@ def extract_new_pdfs(source_index, csv_path, extract_func,
     - n'ont pas déjà été traités
     - ne sont pas dans le log NO_read
     - sont dans un sous-dossier matchant un des filtres
-    - ont une date de modification (mtime) >= START_DATE
+
+    Note : le filtre mtime >= START_DATE est appliqué en amont par build_source_index,
+    donc l'index ne contient déjà que des fichiers récents.
 
     Returns:
         Liste de dicts (records) à insérer dans le CSV.
     """
     new_records = []
-    start_ts = START_DATE.timestamp()  # conversion en timestamp pour comparaison rapide
 
-    # Compteurs pour le log de fin
-    skipped_too_old = 0
     skipped_already = 0
     skipped_no_read = 0
     skipped_subdir = 0
     skipped_extension = 0
-    skipped_mtime_error = 0
 
     for filename, filepath in source_index.items():
         # Filtre extension
@@ -104,18 +102,6 @@ def extract_new_pdfs(source_index, csv_path, extract_func,
             skipped_subdir += 1
             continue
 
-        # Filtre date de modification >= START_DATE
-        try:
-            mtime = os.path.getmtime(filepath)
-        except OSError as e:
-            logger.warning(f"Impossible de lire mtime pour {filepath}: {e}")
-            skipped_mtime_error += 1
-            continue
-
-        if mtime < start_ts:
-            skipped_too_old += 1
-            continue
-
         # Extraction
         info = extract_func(filepath)
         if info is None:
@@ -127,11 +113,9 @@ def extract_new_pdfs(source_index, csv_path, extract_func,
     logger.info(
         f"Filtrage : {len(new_records)} retenu(s), "
         f"{skipped_already} déjà traité(s), "
-        f"{skipped_too_old} trop ancien(s), "
         f"{skipped_no_read} déjà NO_read, "
         f"{skipped_subdir} hors sous-dossier, "
-        f"{skipped_extension} non-PDF, "
-        f"{skipped_mtime_error} erreur mtime"
+        f"{skipped_extension} non-PDF"
     )
 
     return new_records
@@ -145,7 +129,7 @@ def process_message_type(label, source_path, csv_path, extract_func,
                           subdir_filters, no_read_set):
     """
     Traite un type de message (MX103 ou MT910) :
-    1. Indexe la source
+    1. Indexe la source (avec filtre mtime intégré)
     2. Extrait les nouveaux PDF
     3. Met à jour le CSV
 
@@ -154,7 +138,7 @@ def process_message_type(label, source_path, csv_path, extract_func,
     """
     logger.info(f"=== Traitement {label} ===")
 
-    source_index = build_source_index(source_path)
+    source_index = build_source_index(source_path, min_mtime=START_DATE)
     already_processed = get_already_processed_filenames(csv_path)
 
     new_records = extract_new_pdfs(

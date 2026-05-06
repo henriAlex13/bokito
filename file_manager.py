@@ -20,27 +20,60 @@ logger = logging.getLogger(__name__)
 # Indexation des fichiers source (perf : 1 seul os.walk)
 # ============================================================
 
-def build_source_index(root_path):
+def build_source_index(root_path, min_mtime=None):
     """
     Parcourt root_path une seule fois et construit un index {filename: filepath}.
 
     Évite de relancer os.walk à chaque copie.
-    En cas de doublons de noms, on garde le premier rencontré et on log un warning.
+    En cas de doublons de noms, on garde le premier rencontré.
+
+    Args:
+        root_path: dossier racine à parcourir
+        min_mtime: datetime optionnel. Si fourni, seuls les fichiers dont la
+                   date de modification est >= min_mtime sont indexés.
+
+    Returns:
+        dict {filename: filepath}
     """
     index = {}
     duplicates = 0
+    skipped_too_old = 0
+    skipped_mtime_error = 0
+
+    min_ts = min_mtime.timestamp() if min_mtime else None
 
     for root, _, files in os.walk(root_path):
         for f in files:
+            full_path = os.path.join(root, f)
+
+            # Filtre mtime (le plus tôt possible pour économiser la mémoire)
+            if min_ts is not None:
+                try:
+                    if os.path.getmtime(full_path) < min_ts:
+                        skipped_too_old += 1
+                        continue
+                except OSError as e:
+                    logger.warning(f"Impossible de lire mtime pour {full_path}: {e}")
+                    skipped_mtime_error += 1
+                    continue
+
             if f in index:
                 duplicates += 1
                 continue
-            index[f] = os.path.join(root, f)
 
-    msg = f"Index source {root_path} : {len(index)} fichier(s)"
+            index[f] = full_path
+
+    msg = f"Index source {root_path} : {len(index)} fichier(s) retenu(s)"
+    if min_mtime:
+        msg += f" (depuis {min_mtime.date()})"
+    if skipped_too_old:
+        msg += f", {skipped_too_old} trop ancien(s)"
     if duplicates:
-        msg += f" ({duplicates} doublon(s) ignoré(s))"
+        msg += f", {duplicates} doublon(s) ignoré(s)"
+    if skipped_mtime_error:
+        msg += f", {skipped_mtime_error} erreur(s) mtime"
     logger.info(msg)
+
     return index
 
 
