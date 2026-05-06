@@ -3,7 +3,7 @@ Point d'entrée du traitement SWIFT.
 
 Flux :
 1. Initialisation (logs, CSV)
-2. Indexation des fichiers source avec filtre mtime >= START_DATE (gain perf majeur)
+2. Indexation des fichiers source avec élagage par ctime des dossiers >= START_DATE
 3. Extraction des nouveaux PDF -> CSV
 4. Matching MX103 <-> MT910
 5. Copie des fichiers matchés (MATCH/) et non matchés vieux (PAS_MATCH/)
@@ -66,8 +66,9 @@ def extract_new_pdfs(source_index, csv_path, extract_func,
     - ne sont pas dans le log NO_read
     - sont dans un sous-dossier matchant un des filtres
 
-    Note : le filtre mtime >= START_DATE est appliqué en amont par build_source_index,
-    donc l'index ne contient déjà que des fichiers récents.
+    Note : le filtre date est appliqué en amont par build_source_index
+    (élagage des dossiers anciens), donc l'index ne contient déjà que
+    des fichiers situés dans des dossiers récents.
 
     Returns:
         Liste de dicts (records) à insérer dans le CSV.
@@ -129,7 +130,7 @@ def process_message_type(label, source_path, csv_path, extract_func,
                           subdir_filters, no_read_set):
     """
     Traite un type de message (MX103 ou MT910) :
-    1. Indexe la source (avec filtre mtime intégré)
+    1. Indexe la source (avec élagage par ctime des dossiers)
     2. Extrait les nouveaux PDF
     3. Met à jour le CSV
 
@@ -138,7 +139,7 @@ def process_message_type(label, source_path, csv_path, extract_func,
     """
     logger.info(f"=== Traitement {label} ===")
 
-    source_index = build_source_index(source_path, min_mtime=START_DATE)
+    source_index = build_source_index(source_path, min_ctime=START_DATE)
     already_processed = get_already_processed_filenames(csv_path)
 
     new_records = extract_new_pdfs(
@@ -161,7 +162,7 @@ def process_message_type(label, source_path, csv_path, extract_func,
 def main():
     setup_logging()
     logger.info(f"========== Démarrage : {datetime.now()} ==========")
-    logger.info(f"Filtre date : fichiers modifiés depuis {START_DATE}")
+    logger.info(f"Filtre date : dossiers créés depuis {START_DATE}")
 
     # 1. Préparation
     os.makedirs(OUTPUT_PATH, exist_ok=True)

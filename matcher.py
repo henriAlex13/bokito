@@ -9,12 +9,17 @@ Logique séquentielle en 2 étapes :
 La colonne 'match_type' du CSV trace le critère :
 - "reference"   : matché à l'étape 1
 - "32A_debtor"  : matché à l'étape 2
+
+Les match_id sont des entiers incrémentaux (1, 2, 3...) MAIS STABLES :
+une paire conserve son match_id entre les runs grâce à la réutilisation
+des IDs présents dans matches.csv (lookup sur cle_32A + filenames).
+Cela garantit l'idempotence en cas de relance après interruption.
 """
 import logging
 import pandas as pd
 
 from storage import load_csv, append_matches
-from config import MX103_CSV, MT910_CSV
+from config import MX103_CSV, MT910_CSV, MATCHES_CSV
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +30,9 @@ MATCH_COLUMNS = [
     'date_mx', 'date_mt',
     'match_type',
 ]
+
+# Clé naturelle d'une paire (utilisée pour réutiliser les match_id existants)
+PAIR_KEY = ['cle_32A', 'filename_mx', 'filename_mt']
 
 
 # ============================================================
@@ -75,9 +83,8 @@ def match_data():
         logger.info("Aucune correspondance trouvée")
         return _empty_matches_df()
 
-    # --- Numérotation et persistance
-    df_match = df_match.reset_index(drop=True)
-    df_match.insert(0, 'match_id', df_match.index + 1)
+    # --- Attribution stable des match_id incrémentaux
+    df_match = _assign_stable_match_ids(df_match)
     df_match = df_match[MATCH_COLUMNS]
 
     append_matches(df_match)
@@ -87,19 +94,80 @@ def match_data():
 
 
 # ============================================================
+# Attribution stable des match_id
+# ============================================================
+
+def _assign_stable_match_ids(df_new):
+    """
+    Attribue des match_id incrémentaux (1, 2, 3...) en réutilisant ceux
+    déjà présents dans matches.csv pour les paires existantes.
+
+    Logique :
+    - Pour chaque paire (cle_32A, filename_mx, filename_mt) déjà connue
+      dans matches.csv, on reprend son match_id existant.
+    - Pour les nouvelles paires, on attribue les ID suivants
+      (max_existant + 1, +2, ...).
+
+    Returns:
+        DataFrame avec une colonne 'match_id' (int) renseignée.
+    """
+    df_existing = load_csv(MATCHES_CSV)
+
+    # Dictionnaire {(cle_32A, filename_mx, filename_mt): match_id}
+    existing_ids = {}
+    max_existing = 0
+
+    if not df_existing.empty and 'match_id' in df_existing.columns:
+        for _, row in df_existing.iterrows():
+            key = (str(row['cle_32A']), str(row['filename_mx']), str(row['filename_mt']))
+            try:
+                mid = int(row['match_id'])
+                existing_ids[key] = mid
+                max_existing = max(max_existing, mid)
+            except (ValueError, TypeError):
+                # match_id non numérique (ancien format hash par ex.) → on ignore
+                continue
+
+    # Attribuer les ID
+    next_id = max_existing + 1
+    new_count = 0
+    reused_count = 0
+    new_ids = []
+
+    for _, row in df_new.iterrows():
+        key = (str(row['cle_32A']), str(row['filename_mx']), str(row['filename_mt']))
+        if key in existing_ids:
+            new_ids.append(existing_ids[key])
+            reused_count += 1
+        else:
+            new_ids.append(next_id)
+            existing_ids[key] = next_id  # au cas où la même paire apparaît 2x dans df_new
+            next_id += 1
+            new_count += 1
+
+    df_new = df_new.copy()
+    df_new['match_id'] = new_ids
+
+    logger.info(
+        f"Match IDs : {reused_count} réutilisé(s), {new_count} nouveau(x) "
+        f"(prochain ID disponible : {next_id})"
+    )
+
+    return df_new
+
+
+# ============================================================
 # Étape 1 : match par référence
 # ============================================================
 
 def _match_by_reference(df_mx, df_mt):
     """Jointure entre reference_mx (MX) et reference_mt (MT)."""
-    # Exclure les références vides
     df_mx_ref = df_mx[df_mx['reference_mx'].astype(str).str.strip() != ''].copy()
     df_mt_ref = df_mt[df_mt['reference_mt'].astype(str).str.strip() != ''].copy()
 
     if df_mx_ref.empty or df_mt_ref.empty:
         return _empty_matches_df()
 
-    # Jointure (left_on/right_on car les colonnes ont des noms différents)
     df = pd.merge(
         df_mx_ref, df_mt_ref,
         left_on='reference_mx', right_on='reference_mt',
@@ -109,7 +177,6 @@ def _match_by_reference(df_mx, df_mt):
     if df.empty:
         return _empty_matches_df()
 
-    # Côté MX, cle_32A est devenue cle_32A_mx après le merge (suffixes)
     df['cle_32A'] = df['cle_32A_mx']
     df['match_type'] = 'reference'
 
@@ -126,7 +193,6 @@ def _match_by_cle_32A_debtor(df_mx, df_mt):
     if df_mx.empty or df_mt.empty:
         return _empty_matches_df()
 
-    # Exclure les cle_32A vides (sinon merge sur "" qui peut tout faire matcher)
     df_mx_ok = df_mx[df_mx['cle_32A'].astype(str).str.strip() != ''].copy()
     df_mt_ok = df_mt[df_mt['cle_32A'].astype(str).str.strip() != ''].copy()
 
@@ -138,7 +204,6 @@ def _match_by_cle_32A_debtor(df_mx, df_mt):
     if df.empty:
         return _empty_matches_df()
 
-    # Filtre debtor ⊂ texte_72
     mask = df.apply(_debtor_in_texte_72, axis=1)
     df = df[mask].copy()
 

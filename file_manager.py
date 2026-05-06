@@ -20,58 +20,72 @@ logger = logging.getLogger(__name__)
 # Indexation des fichiers source (perf : 1 seul os.walk)
 # ============================================================
 
-def build_source_index(root_path, min_mtime=None):
+def build_source_index(root_path, min_ctime=None):
     """
     Parcourt root_path une seule fois et construit un index {filename: filepath}.
 
-    Évite de relancer os.walk à chaque copie.
+    OPTIMISATION : si min_ctime est fourni, le filtrage se fait au niveau des
+    DOSSIERS (via leur ctime, date de création) et non des fichiers individuels.
+    Les sous-dossiers créés avant min_ctime sont entièrement skippés (pas de
+    descente). Cela évite des dizaines de milliers d'appels réseau sur
+    lecteurs SMB/CIFS comme Y:/ ou Z:/.
+
+    HYPOTHÈSE : les fichiers récents sont toujours dans des dossiers récents.
+    Un fichier de janvier 2026 ne sera jamais dans un dossier de décembre 2025.
+
     En cas de doublons de noms, on garde le premier rencontré.
 
     Args:
         root_path: dossier racine à parcourir
-        min_mtime: datetime optionnel. Si fourni, seuls les fichiers dont la
-                   date de modification est >= min_mtime sont indexés.
+        min_ctime: datetime optionnel. Si fourni, les sous-dossiers créés
+                   avant cette date ne seront PAS explorés.
 
     Returns:
         dict {filename: filepath}
     """
     index = {}
     duplicates = 0
-    skipped_too_old = 0
-    skipped_mtime_error = 0
+    pruned_dirs = 0
+    ctime_errors = 0
 
-    min_ts = min_mtime.timestamp() if min_mtime else None
+    min_ts = min_ctime.timestamp() if min_ctime else None
 
-    for root, _, files in os.walk(root_path):
-        for f in files:
-            full_path = os.path.join(root, f)
-
-            # Filtre mtime (le plus tôt possible pour économiser la mémoire)
-            if min_ts is not None:
+    for root, dirs, files in os.walk(root_path):
+        # Élagage : retirer les sous-dossiers trop anciens AVANT que os.walk
+        # n'y descende. Modification IN-PLACE de dirs[] (important pour os.walk).
+        if min_ts is not None:
+            kept_dirs = []
+            for d in dirs:
+                full_dir = os.path.join(root, d)
                 try:
-                    if os.path.getmtime(full_path) < min_ts:
-                        skipped_too_old += 1
-                        continue
+                    if os.path.getctime(full_dir) >= min_ts:
+                        kept_dirs.append(d)
+                    else:
+                        pruned_dirs += 1
                 except OSError as e:
-                    logger.warning(f"Impossible de lire mtime pour {full_path}: {e}")
-                    skipped_mtime_error += 1
-                    continue
+                    logger.warning(f"Impossible de lire ctime pour {full_dir}: {e}")
+                    ctime_errors += 1
+                    # En cas d'erreur, on garde le dossier (on préfère trop indexer
+                    # que pas assez)
+                    kept_dirs.append(d)
+            dirs[:] = kept_dirs  # IMPORTANT : modification in-place
 
+        # Indexer les fichiers du dossier courant
+        for f in files:
             if f in index:
                 duplicates += 1
                 continue
-
-            index[f] = full_path
+            index[f] = os.path.join(root, f)
 
     msg = f"Index source {root_path} : {len(index)} fichier(s) retenu(s)"
-    if min_mtime:
-        msg += f" (depuis {min_mtime.date()})"
-    if skipped_too_old:
-        msg += f", {skipped_too_old} trop ancien(s)"
+    if min_ctime:
+        msg += f" (dossiers depuis {min_ctime.date()})"
+    if pruned_dirs:
+        msg += f", {pruned_dirs} sous-dossier(s) anciens élagués"
     if duplicates:
         msg += f", {duplicates} doublon(s) ignoré(s)"
-    if skipped_mtime_error:
-        msg += f", {skipped_mtime_error} erreur(s) mtime"
+    if ctime_errors:
+        msg += f", {ctime_errors} erreur(s) ctime"
     logger.info(msg)
 
     return index
