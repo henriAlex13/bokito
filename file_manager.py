@@ -32,40 +32,31 @@ def _path_segments(path):
         'Y:/entrant/pacs.008/X/auto/file.pdf'
         -> ['y:', 'entrant', 'pacs.008', 'x', 'auto']
     """
-    # Si path se termine par une extension, on retire le filename
     if os.path.splitext(path)[1]:
         path = os.path.dirname(path)
     normalized = path.replace('\\', '/').lower()
     return [seg for seg in normalized.split('/') if seg]
 
 
+def _segment_eq(a, b):
+    """Compare deux segments en gérant le wildcard."""
+    return a == WILDCARD or b == WILDCARD or a == b
+
+
 def _filter_matches_segments(segments, flt):
     """
-    Vérifie si la fin de `segments` (liste de segments du dirname)
-    matche exactement `flt` (filtre avec éventuels wildcards).
-
-    Le filtre matche si les N derniers segments correspondent un à un
-    aux N éléments du filtre, où :
-    - '*' matche n'importe quel segment
-    - tout autre élément doit être strictement égal au segment
-
-    Exemple :
-        segments = ['y:', 'entrant', 'pacs.008', '2026_01', 'auto']
-        flt      = ['entrant', 'pacs.008', '*', 'auto']
-        -> True (les 4 derniers segments matchent)
+    Vérifie si la fin de `segments` matche exactement `flt` (filtre),
+    avec support du wildcard.
     """
     n = len(flt)
     if len(segments) < n:
         return False
 
-    # Comparer les N derniers segments avec le filtre
     tail = segments[-n:]
     flt_lower = [t.lower() for t in flt]
 
     for seg, expected in zip(tail, flt_lower):
-        if expected == WILDCARD:
-            continue
-        if seg != expected:
+        if not _segment_eq(seg, expected):
             return False
     return True
 
@@ -73,90 +64,82 @@ def _filter_matches_segments(segments, flt):
 def path_matches_filter(path, subdir_filters):
     """
     Vérifie qu'un chemin satisfait au moins un des filtres.
-
-    Le matching exige que les derniers segments du dirname correspondent
-    exactement (avec wildcards) à un filtre. Les fichiers doivent donc
-    être dans le dossier final exact, pas dans un sous-dossier.
-
-    Exemple :
-        path = 'Y:/entrant/pacs.008/2026_01/auto/file.pdf'
-        filtre = ['entrant', 'pacs.008', '*', 'auto']
-        -> True
+    Le filtre matche si les N derniers segments du dirname correspondent
+    exactement (avec wildcards) au filtre.
     """
     segments = _path_segments(path)
     return any(_filter_matches_segments(segments, flt) for flt in subdir_filters)
 
 
-def _can_descend_to_filter(full_dir, root_path, subdir_filters):
+def _can_descend_to_filter(full_dir, root_path, subdir_filters,
+                            max_depth_no_match=10):
     """
     Détermine si descendre dans `full_dir` peut potentiellement mener à
     un chemin satisfaisant un filtre.
 
-    Logique : à chaque niveau de profondeur dans le walk, on vérifie qu'au
-    moins un filtre reste "compatible" avec le chemin construit jusque-là.
-
-    Un filtre est compatible si, en alignant la fin de `segments` avec
-    le DÉBUT du filtre, tous les segments alignés matchent (avec wildcards).
-    Si on a déjà parcouru K segments du filtre, il en reste (N-K) à
-    rencontrer en descendant.
+    Logique :
+    - Le filtre peut être satisfait à N'IMPORTE QUELLE profondeur sous root.
+    - On garde le dossier si l'une des conditions suivantes est vraie :
+      a) Le chemin matche déjà un filtre complet (peu probable car on appellerait
+         déjà path_matches_filter, mais par sécurité)
+      b) Un SUFFIXE du chemin matche un PRÉFIXE strict d'un filtre
+         (on est en train de construire le filtre)
+      c) Aucun préfixe du filtre n'est commencé ET on n'est pas trop profond
+         (on est encore avant le filtre, on continue à descendre)
 
     Args:
-        full_dir:        chemin du sous-dossier candidat (sans filename)
-        root_path:       racine du parcours
-        subdir_filters:  liste de filtres
+        full_dir:           chemin du sous-dossier candidat
+        root_path:          racine du parcours
+        subdir_filters:     liste de filtres
+        max_depth_no_match: profondeur max sous root sans avoir commencé
+                            à matcher un filtre (sécurité anti-explosion)
     """
     dir_segments = _path_segments(full_dir)
     root_segments = _path_segments(root_path)
 
-    # Combien de segments avons-nous descendus sous root_path ?
-    depth_under_root = len(dir_segments) - len(root_segments)
-    if depth_under_root < 0:
-        return True  # on n'a pas encore atteint root, on garde
+    depth_under_root = max(0, len(dir_segments) - len(root_segments))
 
+    # Cas (a) : le chemin matche déjà un filtre complet
+    if any(_filter_matches_segments(dir_segments, flt) for flt in subdir_filters):
+        return True
+
+    # Pour chaque filtre, on regarde s'il peut potentiellement être atteint
+    # depuis ce dossier en continuant à descendre.
     for flt in subdir_filters:
-        # Si on est plus profond que le filtre, on a dépassé : pas un match
-        # potentiel pour ce filtre (mais peut-être pour un autre).
-        if depth_under_root > len(flt):
-            continue
-
-        # Aligner les `depth_under_root` derniers segments avec le DÉBUT du filtre.
-        # Sauf qu'on ne sait pas où le filtre commence à matcher dans dir_segments.
-        # Heuristique pratique : on essaie d'aligner la fin de dir_segments avec
-        # un préfixe du filtre.
-        #
-        # Pour chaque longueur de préfixe k allant de 1 à depth_under_root, on
-        # vérifie si les k derniers segments matchent les k premiers du filtre.
-        # Si OUI pour au moins une longueur, le filtre reste possible.
-
         flt_lower = [t.lower() for t in flt]
 
-        # Cas 1 : on n'a encore rien parcouru sous root → tout filtre est possible
-        if depth_under_root == 0:
+        # Cas (b) : un suffixe non vide de dir_segments matche un préfixe
+        # strict du filtre. C'est-à-dire qu'on est "en cours de matching".
+        if _has_filter_prefix_in_progress(dir_segments, flt_lower):
             return True
 
-        # Cas 2 : on a parcouru K segments sous root.
-        # On essaie d'aligner les K derniers segments (sous root) avec le préfixe
-        # du filtre.
-        relative = dir_segments[len(root_segments):]
-        k = len(relative)
+    # Cas (c) : aucun filtre n'est en cours. On continue tant qu'on n'est
+    # pas trop profond (sinon on stoppe pour éviter de scanner inutilement).
+    if depth_under_root <= max_depth_no_match:
+        return True
 
-        # Vérifier si relative[-min(k, len(flt)):] matche le préfixe correspondant
-        # du filtre.
-        match_len = min(k, len(flt))
-        prefix_flt = flt_lower[:match_len]
-        suffix_relative = relative[-match_len:] if match_len > 0 else []
+    return False
 
-        ok = True
-        for seg, expected in zip(suffix_relative, prefix_flt):
-            if expected == WILDCARD:
-                continue
-            if seg != expected:
-                ok = False
-                break
 
+def _has_filter_prefix_in_progress(dir_segments, flt_lower):
+    """
+    Retourne True s'il existe un préfixe STRICT (non vide, non complet) du
+    filtre qui matche exactement les K derniers segments de dir_segments
+    (avec K = longueur du préfixe).
+
+    Cela signifie qu'on est "en train de construire" le chemin du filtre
+    et que descendre peut encore le compléter.
+    """
+    n = len(flt_lower)
+    # Préfixes de longueur 1 à n-1 (strict, pas le filtre complet)
+    for k in range(1, n):
+        prefix = flt_lower[:k]
+        if len(dir_segments) < k:
+            continue
+        tail = dir_segments[-k:]
+        ok = all(_segment_eq(seg, expected) for seg, expected in zip(tail, prefix))
         if ok:
             return True
-
     return False
 
 
@@ -169,21 +152,12 @@ def build_source_index(root_path, min_ctime=None, subdir_filters=None):
     Parcourt root_path une seule fois et construit un index {filename: filepath}.
 
     Deux niveaux d'élagage pour minimiser les appels réseau :
-    1. Par ctime : sous-dossiers créés avant min_ctime → skip
+    1. Par ctime : appliqué UNIQUEMENT au premier niveau sous root (les
+       dossiers MMAA). Hypothèse : si MMAA est récent, tout son contenu
+       l'est aussi. Les niveaux plus profonds (JJMMAA, entrant, ...) peuvent
+       avoir un ctime ancien (ex: dossier "entrant" créé il y a des mois)
+       sans qu'on veuille les ignorer.
     2. Par filtres : sous-dossiers ne pouvant mener à aucun filtre → skip
-
-    Le matching utilise des SEGMENTS de chemin (pas des sous-chaînes), avec
-    support du wildcard '*' pour autoriser un niveau intermédiaire variable.
-    Cela garantit qu'un terme comme 'auto' ne matche pas '2026_01_auto' ni
-    un fichier nommé 'sgci_xxx.pdf' dans un mauvais dossier.
-
-    Args:
-        root_path:       dossier racine à parcourir
-        min_ctime:       datetime optionnel pour le filtre ctime
-        subdir_filters:  liste de listes de termes (avec '*' pour wildcard)
-
-    Returns:
-        dict {filename: filepath}
     """
     index = {}
     duplicates = 0
@@ -192,15 +166,21 @@ def build_source_index(root_path, min_ctime=None, subdir_filters=None):
     ctime_errors = 0
 
     min_ts = min_ctime.timestamp() if min_ctime else None
+    root_segments_count = len(_path_segments(root_path))
 
     for root, dirs, files in os.walk(root_path):
+        # Profondeur du dossier courant sous root
+        current_depth = len(_path_segments(root)) - root_segments_count
+
         # === Élagage des sous-dossiers (modification IN-PLACE) ===
         kept_dirs = []
         for d in dirs:
             full_dir = os.path.join(root, d)
 
-            # Filtre 1 : ctime
-            if min_ts is not None:
+            # Filtre 1 : ctime — UNIQUEMENT au 1er niveau sous root (MMAA)
+            # current_depth == 0 signifie qu'on est dans la racine et que les
+            # sous-dossiers `dirs` sont au niveau 1 (= MMAA).
+            if min_ts is not None and current_depth == 0:
                 try:
                     if os.path.getctime(full_dir) < min_ts:
                         pruned_dirs_old += 1
@@ -222,8 +202,6 @@ def build_source_index(root_path, min_ctime=None, subdir_filters=None):
         dirs[:] = kept_dirs
 
         # === Indexer les fichiers du dossier courant ===
-        # On n'indexe les fichiers que si le dossier courant satisfait
-        # exactement un filtre (matching par suffixe ordonné).
         if subdir_filters and not path_matches_filter(root, subdir_filters):
             continue
 
@@ -235,9 +213,9 @@ def build_source_index(root_path, min_ctime=None, subdir_filters=None):
 
     msg = f"Index source {root_path} : {len(index)} fichier(s) retenu(s)"
     if min_ctime:
-        msg += f" (dossiers depuis {min_ctime.date()})"
+        msg += f" (MMAA depuis {min_ctime.date()})"
     if pruned_dirs_old:
-        msg += f", {pruned_dirs_old} sous-dossier(s) anciens élagués"
+        msg += f", {pruned_dirs_old} MMAA anciens élagués"
     if pruned_dirs_filter:
         msg += f", {pruned_dirs_filter} sous-dossier(s) hors filtre élagués"
     if duplicates:
@@ -254,11 +232,7 @@ def build_source_index(root_path, min_ctime=None, subdir_filters=None):
 # ============================================================
 
 def build_subdir_path(date_str):
-    """
-    Convertit une date AAMMJJ en (MMAA, JJMMAA).
-
-    Exemple : '250915' -> ('0925', '150925')
-    """
+    """Convertit une date AAMMJJ en (MMAA, JJMMAA)."""
     date_str = str(date_str).strip()
 
     if len(date_str) != 6 or not date_str.isdigit():
@@ -274,9 +248,7 @@ def build_subdir_path(date_str):
 
 def copy_file(filename, date_str, source_index, dest_root,
               sub_type='', prefix='', copied_set=None):
-    """
-    Copie un fichier vers dest_root/sub_type/MMAA/JJMMAA/<prefix><filename>.
-    """
+    """Copie un fichier vers dest_root/sub_type/MMAA/JJMMAA/<prefix><filename>."""
     mmaa, jjmmaa = build_subdir_path(date_str)
     if not mmaa:
         logger.warning(f"Date invalide pour {filename}: {date_str!r}")
