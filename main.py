@@ -3,7 +3,7 @@ Point d'entrée du traitement SWIFT.
 
 Flux :
 1. Initialisation (logs, CSV)
-2. Indexation des fichiers source avec élagage par ctime des dossiers >= START_DATE
+2. Indexation des fichiers source avec élagage par ctime + filtres sous-dossiers
 3. Extraction des nouveaux PDF -> CSV
 4. Matching MX103 <-> MT910
 5. Copie des fichiers matchés (MATCH/) et non matchés vieux (PAS_MATCH/)
@@ -33,6 +33,7 @@ from file_manager import (
     build_source_index,
     copy_matched_files,
     copy_unmatched_old_files,
+    path_matches_filter,
 )
 
 
@@ -64,11 +65,10 @@ def extract_new_pdfs(source_index, csv_path, extract_func,
     - sont des PDF
     - n'ont pas déjà été traités
     - ne sont pas dans le log NO_read
-    - sont dans un sous-dossier matchant un des filtres
+    - sont dans un sous-dossier matchant un des filtres (par SEGMENTS)
 
-    Note : le filtre date est appliqué en amont par build_source_index
-    (élagage des dossiers anciens), donc l'index ne contient déjà que
-    des fichiers situés dans des dossiers récents.
+    Le filtrage par segments garantit qu'un terme comme 'auto' ne matche
+    pas '2026_01_auto' ou un nom de fichier contenant 'auto'.
 
     Returns:
         Liste de dicts (records) à insérer dans le CSV.
@@ -96,10 +96,8 @@ def extract_new_pdfs(source_index, csv_path, extract_func,
             skipped_no_read += 1
             continue
 
-        # Filtre sous-dossier
-        path_low = filepath.lower()
-        if not any(all(f.lower() in path_low for f in flt)
-                   for flt in subdir_filters):
+        # Filtre sous-dossier (matching par SEGMENTS, pas sous-chaîne)
+        if not path_matches_filter(filepath, subdir_filters):
             skipped_subdir += 1
             continue
 
@@ -128,18 +126,14 @@ def extract_new_pdfs(source_index, csv_path, extract_func,
 
 def process_message_type(label, source_path, csv_path, extract_func,
                           subdir_filters, no_read_set):
-    """
-    Traite un type de message (MX103 ou MT910) :
-    1. Indexe la source (avec élagage par ctime des dossiers)
-    2. Extrait les nouveaux PDF
-    3. Met à jour le CSV
-
-    Returns:
-        L'index source (utile pour la phase de copie ultérieure).
-    """
+    """Traite un type de message (MX103 ou MT910)."""
     logger.info(f"=== Traitement {label} ===")
 
-    source_index = build_source_index(source_path, min_ctime=START_DATE)
+    source_index = build_source_index(
+        source_path,
+        min_ctime=START_DATE,
+        subdir_filters=subdir_filters,
+    )
     already_processed = get_already_processed_filenames(csv_path)
 
     new_records = extract_new_pdfs(
@@ -164,14 +158,12 @@ def main():
     logger.info(f"========== Démarrage : {datetime.now()} ==========")
     logger.info(f"Filtre date : dossiers créés depuis {START_DATE}")
 
-    # 1. Préparation
     os.makedirs(OUTPUT_PATH, exist_ok=True)
     init_csv_files()
 
     no_read_set = load_no_read_set()
     copied_set = load_copied_files_set()
 
-    # 2. Extraction MX103
     mx_index = process_message_type(
         label="MX103 / PACS.008",
         source_path=MX103_PATH,
@@ -181,7 +173,6 @@ def main():
         no_read_set=no_read_set,
     )
 
-    # 3. Extraction MT910
     mt_index = process_message_type(
         label="MT910",
         source_path=MT910_PATH,
@@ -191,12 +182,10 @@ def main():
         no_read_set=no_read_set,
     )
 
-    # 4. Matching
     logger.info("=== Matching ===")
     df_matches = match_data()
     logger.info(f"{len(df_matches)} paire(s) trouvée(s)")
 
-    # 5. Copies
     logger.info("=== Copie des fichiers ===")
     copy_matched_files(df_matches, mx_index, mt_index, copied_set)
 

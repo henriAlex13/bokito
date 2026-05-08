@@ -38,16 +38,29 @@ COPIED_LOG_CSV = os.path.join(CSV_DIR, "copied_files_log.csv")
 NO_READ_CSV = os.path.join(CSV_DIR, "no_read_files.csv")
 
 # ============================================================
-# FILTRES DE SOUS-DOSSIERS (chemins à scanner)
+# FILTRES DE SOUS-DOSSIERS (chemins exacts à scanner)
 # ============================================================
+#
+# Convention : chaque filtre est une liste de segments du chemin du DOSSIER
+# (sans le filename). Le caractère '*' est un wildcard qui matche
+# n'importe quel segment unique.
+#
+# Le matching s'applique sur les DERNIERS segments du dirname.
+# Les fichiers doivent être directement dans le dossier final (pas de
+# sous-dossier en dessous).
+#
+# Exemples de chemins valides pour MX103 :
+#   Y:/.../entrant/pacs.008/X/auto/file.pdf
+#   Y:/.../entrant/pacs.008/X/manu/sgci/file.pdf
+#
+# Exemples de chemins valides pour MT910 :
+#   Z:/.../entrant/mt910/file.pdf
 
-# Pour les MX103 : on scanne 2 sous-arborescences
 MX103_SUBDIR_FILTERS = [
-    ["entrant", "pacs.008", "manu", "sgci"],
-    ["entrant", "pacs.008", "auto"],
+    ["entrant", "pacs.008", "*", "auto"],
+    ["entrant", "pacs.008", "*", "manu", "sgci"],
 ]
 
-# Pour les MT910 : un seul filtre
 MT910_SUBDIR_FILTERS = [
     ["entrant", "mt910"],
 ]
@@ -63,9 +76,8 @@ DAYS_THRESHOLD_NO_MATCH = 10
 MX103_MAX_PAGES = 2
 MT910_MAX_PAGES = 1
 
-# Date à partir de laquelle les fichiers sont traités (filtrage sur mtime).
-# Les fichiers modifiés AVANT cette date sont ignorés (gain de perf majeur sur gros volumes).
-# Format : datetime(année, mois, jour [, heure, minute, seconde])
+# Date à partir de laquelle les fichiers sont traités (filtrage sur ctime).
+# Les sous-dossiers créés AVANT cette date sont ignorés (gain de perf majeur).
 START_DATE = datetime(2026, 1, 1)
 
 # ============================================================
