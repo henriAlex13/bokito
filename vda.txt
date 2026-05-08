@@ -1,0 +1,57 @@
+Sub ConsoliderLignes31()
+    Dim wsSynthese As Worksheet
+    Dim ws As Worksheet
+    Dim ligneCible As Long
+    Dim derniereCol As Long
+    Dim ligneVide As Boolean
+    
+    Application.ScreenUpdating = False
+    
+    Set wsSynthese = ThisWorkbook.Sheets("Synthese")
+    
+    ' Nettoyer la zone de consolidation (à partir de la ligne 31)
+    With wsSynthese
+        derniereCol = .Cells(31, .Columns.Count).End(xlToLeft).Column
+        If derniereCol < 1 Then derniereCol = 50
+        .Range(.Cells(31, 1), .Cells(.Rows.Count, derniereCol)).ClearContents
+    End With
+    
+    ligneCible = 31
+    
+    ' Parcourir toutes les feuilles Projet-*
+    For Each ws In ThisWorkbook.Worksheets
+        If ws.Name Like "Projet-*" Then
+            derniereCol = ws.Cells(31, ws.Columns.Count).End(xlToLeft).Column
+            
+            If derniereCol >= 1 Then
+                ' Vérifier si la ligne 31 est vide (toutes les cellules vides)
+                ligneVide = (Application.WorksheetFunction.CountA( _
+                    ws.Range(ws.Cells(31, 1), ws.Cells(31, derniereCol))) = 0)
+                
+                If Not ligneVide Then
+                    ' Copier la ligne 31 (valeurs + formats)
+                    ws.Range(ws.Cells(31, 1), ws.Cells(31, derniereCol)).Copy
+                    wsSynthese.Cells(ligneCible, 1).PasteSpecial Paste:=xlPasteValues
+                    wsSynthese.Cells(ligneCible, 1).PasteSpecial Paste:=xlPasteFormats
+                    
+                    ligneCible = ligneCible + 1
+                End If
+            End If
+        End If
+    Next ws
+    
+    Application.CutCopyMode = False
+    Application.ScreenUpdating = True
+    
+    MsgBox "Consolidation terminée : " & (ligneCible - 31) & " projet(s) consolidé(s).", vbInformation
+End Sub
+
+
+
+Private Sub Workbook_NewSheet(ByVal Sh As Object)
+    ' Quand une nouvelle feuille est ajoutée, si son nom commence par Projet-
+    ' on relance la consolidation
+    If Sh.Name Like "Projet-*" Then
+        Application.OnTime Now + TimeValue("00:00:02"), "ConsoliderLignes31"
+    End If
+End Sub
