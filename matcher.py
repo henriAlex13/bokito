@@ -189,7 +189,13 @@ def _match_by_reference(df_mx, df_mt):
 # ============================================================
 
 def _match_by_cle_32A_debtor(df_mx, df_mt):
-    """Jointure sur cle_32A puis filtre adresse_debtor ⊂ texte_72."""
+    """
+    Jointure sur cle_32A puis filtre :
+    - adresse_debtor ⊂ texte_72 ET
+    - adresse_creditor ⊂ texte_72
+
+    (Les deux acteurs doivent apparaître dans le bloc 72 du MT910.)
+    """
     if df_mx.empty or df_mt.empty:
         return _empty_matches_df()
 
@@ -204,7 +210,7 @@ def _match_by_cle_32A_debtor(df_mx, df_mt):
     if df.empty:
         return _empty_matches_df()
 
-    mask = df.apply(_debtor_in_texte_72, axis=1)
+    mask = df.apply(_debtor_and_creditor_in_texte_72, axis=1)
     df = df[mask].copy()
 
     if df.empty:
@@ -216,14 +222,20 @@ def _match_by_cle_32A_debtor(df_mx, df_mt):
                'date_mx', 'date_mt', 'match_type']]
 
 
-def _debtor_in_texte_72(row):
-    """Vérifie si l'adresse du débiteur (MX) apparaît dans le texte 72 (MT)."""
+def _debtor_and_creditor_in_texte_72(row):
+    """
+    Vérifie que l'adresse_debtor ET l'adresse_creditor (MX) apparaissent
+    tous deux dans le texte 72 (MT). Les deux conditions sont obligatoires.
+    """
     debtor = str(row.get('adresse_debtor', '')).lower().strip()
+    creditor = str(row.get('adresse_creditor', '')).lower().strip()
     texte = str(row.get('texte_72', '')).lower().strip()
 
-    if not debtor or not texte:
+    # Les 3 valeurs doivent être non vides
+    if not debtor or not creditor or not texte:
         return False
-    return debtor in texte
+
+    return (debtor in texte) and (creditor in texte)
 
 
 # ============================================================

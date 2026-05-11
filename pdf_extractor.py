@@ -68,11 +68,12 @@ def extract_mx103_info(filepath):
     Retourne un dict ou None en cas d'échec.
 
     Champs extraits :
-        - montant         : montant de la transaction
-        - date            : date de règlement (format AAMMJJ)
-        - adresse_debtor  : nom du débiteur (sans espaces)
-        - cle_32A         : concaténation date + montant (sans séparateurs)
-        - reference_mx    : référence extraite du nom de fichier (index 4)
+        - montant          : montant de la transaction
+        - date             : date de règlement (format AAMMJJ)
+        - adresse_debtor   : nom du débiteur (sans espaces)
+        - adresse_creditor : nom du créditeur (sans espaces)
+        - cle_32A          : concaténation date + montant (sans séparateurs)
+        - reference_mx     : référence extraite du nom de fichier (index 4)
     """
     text = _open_pdf_text(filepath, MX103_MAX_PAGES)
     if not text:
@@ -114,6 +115,18 @@ def extract_mx103_info(filepath):
     else:
         logger.warning(f"[MX103] Debtor.Name introuvable dans {filename}")
 
+    # --- Adresse Creditor : ligne "Name:" du bloc Creditor
+    adresse_creditor = ""
+    match_creditor = re.search(
+        r"Creditor.*?Name:\s*([^\n]+)",
+        text,
+        re.DOTALL,
+    )
+    if match_creditor:
+        adresse_creditor = match_creditor.group(1).strip().replace(" ", "")
+    else:
+        logger.warning(f"[MX103] Creditor.Name introuvable dans {filename}")
+
     # --- Clé 32A : date + montant nettoyé
     cle_32A = ""
     if date_formatted and montant:
@@ -125,6 +138,7 @@ def extract_mx103_info(filepath):
         "filepath": filepath,
         "cle_32A": cle_32A,
         "adresse_debtor": adresse_debtor,
+        "adresse_creditor": adresse_creditor,
         "date": date_formatted,
         "montant": montant,
         "reference_mx": reference_mx,

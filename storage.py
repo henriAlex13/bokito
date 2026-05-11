@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 CSV_SCHEMAS = {
     MX103_CSV:       ['filename', 'filepath', 'cle_32A', 'adresse_debtor',
-                      'date', 'montant', 'reference_mx'],
+                      'adresse_creditor', 'date', 'montant', 'reference_mx'],
     MT910_CSV:       ['filename', 'filepath', 'cle_32A', 'texte_72',
                       'date', 'montant', 'reference_mt'],
     MATCHES_CSV:     ['match_id', 'cle_32A', 'filename_mx', 'filename_mt',
