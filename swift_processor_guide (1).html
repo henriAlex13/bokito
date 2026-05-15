@@ -1,0 +1,1263 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SWIFT Processor — Guide d'utilisation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,600;9..144,800&family=JetBrains+Mono:wght@400;500;700&family=Inter+Tight:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f6f4ef;
+  --bg-warm: #ede8dc;
+  --ink: #1a1a1a;
+  --ink-soft: #4a4a4a;
+  --rule: #2a2a2a;
+  --accent: #c2410c;
+  --accent-soft: #fef3e7;
+  --success: #166534;
+  --success-soft: #ecfdf5;
+  --warn: #92400e;
+  --warn-soft: #fef9c3;
+  --danger: #991b1b;
+  --danger-soft: #fee2e2;
+  --code-bg: #1e1e1e;
+  --code-ink: #e5e5e5;
+  --code-comment: #6b7280;
+  --code-string: #fbbf24;
+  --code-keyword: #f472b6;
+  --code-func: #93c5fd;
+  --sidebar-width: 300px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Inter Tight', sans-serif;
+  line-height: 1.6;
+  font-size: 16px;
+  min-height: 100vh;
+}
+
+/* ============ LAYOUT ============ */
+.app {
+  display: flex;
+  min-height: 100vh;
+}
+
+.main {
+  flex: 1;
+  margin-left: var(--sidebar-width);
+  min-width: 0;
+}
+
+/* ============ SIDEBAR ============ */
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: var(--sidebar-width);
+  height: 100vh;
+  background: var(--ink);
+  color: var(--bg);
+  overflow-y: auto;
+  padding: 36px 28px;
+  border-right: 1px solid rgba(0,0,0,0.1);
+  z-index: 100;
+}
+
+.sidebar::-webkit-scrollbar { width: 6px; }
+.sidebar::-webkit-scrollbar-track { background: transparent; }
+.sidebar::-webkit-scrollbar-thumb { background: rgba(246, 244, 239, 0.15); border-radius: 3px; }
+.sidebar::-webkit-scrollbar-thumb:hover { background: rgba(246, 244, 239, 0.3); }
+
+.sidebar-brand {
+  padding-bottom: 24px;
+  border-bottom: 1px solid rgba(246, 244, 239, 0.15);
+  margin-bottom: 24px;
+}
+
+.sidebar-brand-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--accent);
+  display: inline-block;
+  padding: 4px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  margin-bottom: 16px;
+}
+
+.sidebar-brand-name {
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  font-size: 28px;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  color: var(--bg);
+}
+
+.sidebar-brand-name em {
+  font-style: italic;
+  color: var(--accent);
+  font-weight: 400;
+}
+
+.sidebar-brand-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: rgba(246, 244, 239, 0.5);
+  letter-spacing: 0.1em;
+  margin-top: 10px;
+}
+
+.sidebar-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: rgba(246, 244, 239, 0.4);
+  margin-bottom: 16px;
+}
+
+.sidebar-nav {
+  list-style: none;
+  counter-reset: nav-section;
+}
+
+.sidebar-nav li {
+  counter-increment: nav-section;
+  margin-bottom: 2px;
+}
+
+.sidebar-nav a {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 12px;
+  color: rgba(246, 244, 239, 0.65);
+  text-decoration: none;
+  font-size: 14px;
+  border-radius: 4px;
+  border-left: 2px solid transparent;
+  transition: all 0.15s ease;
+  line-height: 1.35;
+}
+
+.sidebar-nav a::before {
+  content: counter(nav-section, decimal-leading-zero);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: rgba(246, 244, 239, 0.35);
+  min-width: 20px;
+  transition: color 0.15s ease;
+}
+
+.sidebar-nav a:hover {
+  color: var(--bg);
+  background: rgba(246, 244, 239, 0.05);
+}
+
+.sidebar-nav a:hover::before { color: var(--accent); }
+
+.sidebar-nav a.active {
+  color: var(--bg);
+  background: rgba(194, 65, 12, 0.12);
+  border-left-color: var(--accent);
+  font-weight: 600;
+}
+
+.sidebar-nav a.active::before {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.sidebar-footer {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(246, 244, 239, 0.1);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: rgba(246, 244, 239, 0.4);
+  line-height: 1.6;
+}
+
+.sidebar-footer span { color: var(--accent); }
+
+/* Toggle bouton mobile */
+.menu-toggle {
+  display: none;
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 200;
+  background: var(--ink);
+  color: var(--bg);
+  border: none;
+  padding: 10px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* ============ COVER ============ */
+.cover {
+  background: var(--ink);
+  color: var(--bg);
+  padding: 80px 60px 70px;
+  position: relative;
+  overflow: hidden;
+}
+
+.cover::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -10%;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, var(--accent) 0%, transparent 70%);
+  opacity: 0.15;
+  pointer-events: none;
+}
+
+.cover h1 {
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  font-size: clamp(40px, 5.5vw, 72px);
+  line-height: 0.98;
+  letter-spacing: -0.03em;
+  margin-bottom: 24px;
+  max-width: 900px;
+}
+
+.cover h1 em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--accent);
+}
+
+.cover-sub {
+  font-size: 18px;
+  color: rgba(246, 244, 239, 0.7);
+  max-width: 700px;
+  margin-bottom: 40px;
+  font-weight: 300;
+}
+
+.cover-meta {
+  display: flex;
+  gap: 50px;
+  flex-wrap: wrap;
+  padding-top: 28px;
+  border-top: 1px solid rgba(246, 244, 239, 0.15);
+}
+
+.cover-meta div {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+}
+
+.cover-meta .label {
+  display: block;
+  color: rgba(246, 244, 239, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  margin-bottom: 6px;
+}
+
+.cover-meta .value {
+  color: var(--bg);
+  font-size: 14px;
+}
+
+/* ============ CONTENT ============ */
+.content {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 70px 60px;
+}
+
+section {
+  margin-bottom: 90px;
+  scroll-margin-top: 30px;
+}
+
+.section-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  color: var(--accent);
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 16px;
+}
+
+h2 {
+  font-family: 'Fraunces', serif;
+  font-weight: 400;
+  font-size: clamp(34px, 4vw, 48px);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  margin-bottom: 28px;
+  max-width: 800px;
+}
+
+h2 em {
+  font-style: italic;
+  color: var(--accent);
+}
+
+h3 {
+  font-family: 'Fraunces', serif;
+  font-weight: 600;
+  font-size: 22px;
+  letter-spacing: -0.01em;
+  margin: 44px 0 14px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--ink);
+  display: inline-block;
+}
+
+h4 {
+  font-family: 'Inter Tight', sans-serif;
+  font-weight: 600;
+  font-size: 16px;
+  margin: 28px 0 10px;
+  color: var(--ink);
+}
+
+p {
+  margin-bottom: 14px;
+  color: var(--ink-soft);
+  max-width: 750px;
+  font-size: 16px;
+}
+
+p.lead {
+  font-size: 20px;
+  line-height: 1.5;
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  color: var(--ink);
+  margin-bottom: 36px;
+  max-width: 820px;
+}
+
+strong { color: var(--ink); font-weight: 600; }
+em { font-style: italic; }
+a { color: var(--accent); }
+
+ul, ol {
+  margin: 14px 0 22px 24px;
+  color: var(--ink-soft);
+  max-width: 750px;
+}
+
+li { margin-bottom: 8px; }
+
+/* ============ CODE ============ */
+code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.88em;
+  background: var(--bg-warm);
+  padding: 2px 7px;
+  border-radius: 3px;
+  color: var(--accent);
+  border: 1px solid rgba(0,0,0,0.06);
+}
+
+pre {
+  background: var(--code-bg);
+  color: var(--code-ink);
+  padding: 22px;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  line-height: 1.65;
+  margin: 18px 0;
+  position: relative;
+}
+
+pre::before {
+  content: attr(data-lang);
+  position: absolute;
+  top: 8px;
+  right: 14px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--code-comment);
+}
+
+pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font-size: inherit;
+}
+
+pre .c { color: var(--code-comment); font-style: italic; }
+pre .s { color: var(--code-string); }
+pre .k { color: var(--code-keyword); }
+pre .f { color: var(--code-func); }
+
+/* ============ CALLOUTS ============ */
+.callout {
+  padding: 22px 26px;
+  margin: 26px 0;
+  border-left: 4px solid;
+  border-radius: 0 4px 4px 0;
+}
+
+.callout-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-weight: 700;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.callout-title::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  display: inline-block;
+}
+
+.callout p { margin-bottom: 8px; }
+.callout p:last-child { margin-bottom: 0; }
+
+.callout.info { background: var(--accent-soft); border-color: var(--accent); }
+.callout.info .callout-title { color: var(--accent); }
+.callout.success { background: var(--success-soft); border-color: var(--success); }
+.callout.success .callout-title { color: var(--success); }
+.callout.warn { background: var(--warn-soft); border-color: var(--warn); }
+.callout.warn .callout-title { color: var(--warn); }
+.callout.danger { background: var(--danger-soft); border-color: var(--danger); }
+.callout.danger .callout-title { color: var(--danger); }
+
+/* ============ MODULE CARDS ============ */
+.modules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 18px;
+  margin: 28px 0;
+}
+
+.module {
+  background: white;
+  border: 1px solid rgba(0,0,0,0.1);
+  padding: 22px;
+  border-radius: 4px;
+  position: relative;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.module:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.06);
+}
+
+.module-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--accent);
+  letter-spacing: 0.2em;
+}
+
+.module-name {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 16px;
+  font-weight: 700;
+  margin: 6px 0 12px;
+  color: var(--ink);
+}
+
+.module-desc {
+  font-size: 14px;
+  color: var(--ink-soft);
+  line-height: 1.55;
+}
+
+/* ============ TABLES ============ */
+.table-wrap {
+  margin: 22px 0;
+  overflow-x: auto;
+  border-radius: 4px;
+  border: 1px solid rgba(0,0,0,0.1);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  font-size: 14px;
+}
+
+th {
+  text-align: left;
+  padding: 13px 16px;
+  background: var(--ink);
+  color: var(--bg);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+td {
+  padding: 11px 16px;
+  border-top: 1px solid rgba(0,0,0,0.06);
+  color: var(--ink-soft);
+  vertical-align: top;
+}
+
+td code { font-size: 12px; }
+tr:hover td { background: var(--bg-warm); }
+
+/* ============ FLOW DIAGRAM ============ */
+.flow {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 30px 0;
+  max-width: 700px;
+}
+
+.flow-step {
+  display: flex;
+  align-items: stretch;
+  gap: 20px;
+  background: white;
+  border: 1px solid rgba(0,0,0,0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.flow-num {
+  background: var(--ink);
+  color: var(--bg);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 17px;
+  font-weight: 700;
+  padding: 18px 22px;
+  display: flex;
+  align-items: center;
+  min-width: 70px;
+}
+
+.flow-content { padding: 14px 18px; flex: 1; }
+
+.flow-title {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+
+.flow-desc { font-size: 13.5px; color: var(--ink-soft); line-height: 1.5; }
+
+/* ============ FOOTER ============ */
+.page-footer {
+  background: var(--ink);
+  color: rgba(246, 244, 239, 0.6);
+  padding: 50px 60px;
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+}
+
+.page-footer .accent { color: var(--accent); font-weight: 700; }
+
+/* ============ RESPONSIVE ============ */
+@media (max-width: 1024px) {
+  :root { --sidebar-width: 0; }
+
+  .menu-toggle { display: block; }
+
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    width: 280px;
+  }
+
+  .sidebar.open { transform: translateX(0); }
+
+  .main { margin-left: 0; }
+
+  .cover { padding: 80px 24px 60px; }
+  .content { padding: 60px 24px; }
+}
+
+@media (max-width: 600px) {
+  .cover-meta { gap: 24px; }
+  pre { font-size: 11px; padding: 16px; }
+  .flow-step { flex-direction: column; }
+  .flow-num { min-width: auto; padding: 12px 20px; }
+}
+
+::selection { background: var(--accent); color: white; }
+
+/* Overlay quand sidebar ouverte mobile */
+.overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 50;
+}
+
+.overlay.show { display: block; }
+</style>
+</head>
+<body>
+
+<!-- ============ TOGGLE MOBILE ============ -->
+<button class="menu-toggle" id="menuToggle">☰ MENU</button>
+<div class="overlay" id="overlay"></div>
+
+<div class="app">
+
+<!-- ============ SIDEBAR ============ -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <span class="sidebar-brand-tag">Documentation</span>
+    <div class="sidebar-brand-name">SWIFT<br><em>Processor</em></div>
+    <div class="sidebar-brand-sub">v1.0 · Backup technique</div>
+  </div>
+
+  <div class="sidebar-title">Sommaire</div>
+  <ol class="sidebar-nav" id="sidebarNav">
+    <li><a href="#vue-densemble">Vue d'ensemble</a></li>
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#installation">Installation</a></li>
+    <li><a href="#configuration">Configuration</a></li>
+    <li><a href="#flux">Flux de traitement</a></li>
+    <li><a href="#extraction">Extraction PDF</a></li>
+    <li><a href="#matching">Logique de matching</a></li>
+    <li><a href="#stockage">Stockage CSV</a></li>
+    <li><a href="#filtrage">Filtrage & perf</a></li>
+    <li><a href="#execution">Exécution & cron</a></li>
+    <li><a href="#logs">Lecture des logs</a></li>
+    <li><a href="#maintenance">Maintenance</a></li>
+    <li><a href="#faq">FAQ technique</a></li>
+  </ol>
+
+  <div class="sidebar-footer">
+    <span>●</span> Python 3.13<br>
+    pandas · PyMuPDF<br>
+    Windows local
+  </div>
+</aside>
+
+<!-- ============ MAIN ============ -->
+<div class="main">
+
+<!-- COVER -->
+<header class="cover">
+  <h1>Guide <em>complet</em><br>d'utilisation</h1>
+  <p class="cover-sub">
+    Système de rapprochement automatique de messages SWIFT MX103/PACS.008 et MT910 à partir de fichiers PDF — architecture modulaire, incrémentale et résiliente.
+  </p>
+  <div class="cover-meta">
+    <div>
+      <span class="label">Projet</span>
+      <span class="value">SWIFT Processor</span>
+    </div>
+    <div>
+      <span class="label">Version</span>
+      <span class="value">1.0</span>
+    </div>
+    <div>
+      <span class="label">Stack</span>
+      <span class="value">Python 3.13 · pandas · PyMuPDF</span>
+    </div>
+    <div>
+      <span class="label">Plateforme</span>
+      <span class="value">Windows local</span>
+    </div>
+  </div>
+</header>
+
+<main class="content">
+
+<!-- 1. VUE D'ENSEMBLE -->
+<section id="vue-densemble">
+  <span class="section-num">Section 01</span>
+  <h2>Vue <em>d'ensemble</em></h2>
+  <p class="lead">
+    Le SWIFT Processor automatise le rapprochement entre les ordres de paiement (MX103/PACS.008) et les avis de crédit (MT910) circulant sur le réseau SWIFT. Les messages sont extraits depuis des fichiers PDF déposés sur deux lecteurs réseau distincts.
+  </p>
+
+  <h3>Objectifs métier</h3>
+  <ul>
+    <li><strong>Identifier les paires</strong> (PACS.008 ↔ MT910) qui correspondent à la même opération bancaire.</li>
+    <li><strong>Classer physiquement</strong> les fichiers matchés dans une arborescence <code>MATCH/MMAA/JJMMAA/</code> avec un identifiant commun.</li>
+    <li><strong>Isoler</strong> les fichiers non matchés depuis plus de 10 jours dans <code>PAS_MATCH/</code> pour investigation manuelle.</li>
+    <li><strong>Traiter en continu</strong> les nouveaux fichiers déposés au fil de l'eau (cron toutes les 10 minutes).</li>
+  </ul>
+
+  <h3>Principes de conception</h3>
+  <div class="callout info">
+    <div class="callout-title">Conception</div>
+    <p><strong>Incrémental</strong> — chaque fichier est traité une seule fois, même sur des dizaines de relances.</p>
+    <p><strong>Idempotent</strong> — un crash en cours d'exécution n'altère pas les données ; la relance reprend proprement.</p>
+    <p><strong>Économe en I/O</strong> — élagage agressif des sous-dossiers anciens ou hors-périmètre pour limiter les appels réseau.</p>
+    <p><strong>Auditable</strong> — chaque décision (match, skip, erreur de lecture) est tracée en CSV et dans les logs.</p>
+  </div>
+</section>
+
+<!-- 2. ARCHITECTURE -->
+<section id="architecture">
+  <span class="section-num">Section 02</span>
+  <h2>Architecture <em>des modules</em></h2>
+  <p class="lead">
+    Le projet est découpé en six modules à responsabilité unique. Chaque fichier traite une préoccupation distincte du pipeline.
+  </p>
+
+  <div class="modules-grid">
+    <div class="module">
+      <div class="module-num">01</div>
+      <div class="module-name">config.py</div>
+      <div class="module-desc">Centralise les chemins, constantes métier (START_DATE, seuils), filtres de sous-dossiers et paramètres de logging.</div>
+    </div>
+    <div class="module">
+      <div class="module-num">02</div>
+      <div class="module-name">storage.py</div>
+      <div class="module-desc">Gère les 5 CSV de persistance (MX103, MT910, matches, copies, NO_read). Lecture forcée en <code>str</code> pour éviter la corruption silencieuse.</div>
+    </div>
+    <div class="module">
+      <div class="module-num">03</div>
+      <div class="module-name">pdf_extractor.py</div>
+      <div class="module-desc">Extrait les champs métier (montant, date, debtor, creditor, référence) depuis les PDF avec PyMuPDF et regex robustes.</div>
+    </div>
+    <div class="module">
+      <div class="module-num">04</div>
+      <div class="module-name">matcher.py</div>
+      <div class="module-desc">Implémente le matching séquentiel en deux étapes (référence puis cle_32A+debtor+creditor) avec match_id stables.</div>
+    </div>
+    <div class="module">
+      <div class="module-num">05</div>
+      <div class="module-name">file_manager.py</div>
+      <div class="module-desc">Indexe les fichiers source avec élagage par <code>ctime</code> et filtres de chemins. Copie les fichiers vers MATCH/ et PAS_MATCH/.</div>
+    </div>
+    <div class="module">
+      <div class="module-num">06</div>
+      <div class="module-name">main.py</div>
+      <div class="module-desc">Point d'entrée. Orchestre le pipeline complet : init, indexation, extraction, matching, copies.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 3. INSTALLATION -->
+<section id="installation">
+  <span class="section-num">Section 03</span>
+  <h2>Installation <em>& prérequis</em></h2>
+
+  <h3>Prérequis système</h3>
+  <ul>
+    <li><strong>OS</strong> : Windows (pour le comportement <code>ctime</code> = date de création réelle)</li>
+    <li><strong>Python</strong> : 3.13.x</li>
+    <li><strong>Accès réseau</strong> : lecteurs <code>Y:/</code> (MX103) et <code>Z:/</code> (MT910) montés</li>
+    <li><strong>Espace disque</strong> : suffisant pour <code>OUTPUT_PATH</code> (CSV + copies)</li>
+  </ul>
+
+  <h3>Dépendances Python</h3>
+  <pre data-lang="bash"><span class="c"># Installation des packages</span>
+pip install pandas pymupdf</pre>
+
+  <h3>Structure du projet</h3>
+  <pre data-lang="text">swift_processor/
+├── config.py          <span class="c"># Configuration centrale</span>
+├── storage.py         <span class="c"># Persistance CSV</span>
+├── pdf_extractor.py   <span class="c"># Extraction MX103 + MT910</span>
+├── matcher.py         <span class="c"># Logique de matching</span>
+├── file_manager.py    <span class="c"># Indexation + copies</span>
+└── main.py            <span class="c"># Point d'entrée</span></pre>
+</section>
+
+<!-- 4. CONFIGURATION -->
+<section id="configuration">
+  <span class="section-num">Section 04</span>
+  <h2>Configuration <em>centrale</em></h2>
+  <p class="lead">
+    Toute la configuration vit dans <code>config.py</code>. C'est le seul fichier à ajuster pour changer d'environnement.
+  </p>
+
+  <h3>Chemins</h3>
+  <pre data-lang="python"><span class="c"># Chemins de production</span>
+<span class="k">MX103_PATH</span> = <span class="s">'Y:/'</span>
+<span class="k">MT910_PATH</span> = <span class="s">'Z:/SWIFT_SGCI'</span>
+<span class="k">OUTPUT_PATH</span> = <span class="s">'Y:/TRAITEMENT_MX_MT910'</span></pre>
+
+  <h3>Filtres de sous-dossiers</h3>
+  <p>Chaque filtre est une liste de segments de chemin. Le caractère <code>*</code> agit comme wildcard sur un segment unique.</p>
+
+  <pre data-lang="python"><span class="k">MX103_SUBDIR_FILTERS</span> = [
+    [<span class="s">"entrant"</span>, <span class="s">"pacs.008"</span>, <span class="s">"*"</span>, <span class="s">"auto"</span>],
+    [<span class="s">"entrant"</span>, <span class="s">"pacs.008"</span>, <span class="s">"*"</span>, <span class="s">"manu"</span>, <span class="s">"sgci"</span>],
+]
+
+<span class="k">MT910_SUBDIR_FILTERS</span> = [
+    [<span class="s">"entrant"</span>, <span class="s">"mt910"</span>],
+]</pre>
+
+  <div class="callout info">
+    <div class="callout-title">Matching par segments</div>
+    <p>Les termes sont comparés <strong>segment par segment</strong> (pas par sous-chaîne). Ainsi <code>auto</code> ne matche pas <code>2026_01_auto</code> ni un nom de fichier <code>file_auto.pdf</code>.</p>
+  </div>
+
+  <h3>Paramètres métier</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Paramètre</th><th>Valeur par défaut</th><th>Description</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>START_DATE</code></td>
+          <td><code>datetime(2026, 1, 1)</code></td>
+          <td>Date à partir de laquelle les dossiers MMAA sont indexés. Les dossiers plus anciens sont élagués.</td>
+        </tr>
+        <tr>
+          <td><code>DAYS_THRESHOLD_NO_MATCH</code></td>
+          <td><code>10</code></td>
+          <td>Nombre de jours après lesquels un fichier non matché part en PAS_MATCH/.</td>
+        </tr>
+        <tr>
+          <td><code>MX103_MAX_PAGES</code></td>
+          <td><code>2</code></td>
+          <td>Pages PDF à lire au maximum pour les MX103.</td>
+        </tr>
+        <tr>
+          <td><code>MT910_MAX_PAGES</code></td>
+          <td><code>1</code></td>
+          <td>Pages PDF à lire au maximum pour les MT910.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 5. FLUX -->
+<section id="flux">
+  <span class="section-num">Section 05</span>
+  <h2>Flux <em>de traitement</em></h2>
+  <p class="lead">
+    Chaque exécution suit cinq étapes séquentielles. L'incrémentalité garantit qu'un fichier déjà traité ne sera pas retraité.
+  </p>
+
+  <div class="flow">
+    <div class="flow-step">
+      <div class="flow-num">01</div>
+      <div class="flow-content">
+        <div class="flow-title">Initialisation</div>
+        <div class="flow-desc">Création des dossiers de sortie, initialisation des 5 CSV s'ils n'existent pas, chargement des sets en mémoire (NO_read, copied).</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">02</div>
+      <div class="flow-content">
+        <div class="flow-title">Indexation des sources</div>
+        <div class="flow-desc">Parcours de Y:/ puis Z:/ avec élagage des sous-dossiers anciens (ctime &lt; START_DATE) et hors filtre. Construction d'un dict <code>{filename: filepath}</code>.</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">03</div>
+      <div class="flow-content">
+        <div class="flow-title">Extraction PDF</div>
+        <div class="flow-desc">Pour chaque nouveau fichier de l'index (non présent dans les CSV), extraction des champs métier avec PyMuPDF. Les PDF illisibles sont enregistrés dans NO_read.</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">04</div>
+      <div class="flow-content">
+        <div class="flow-title">Matching</div>
+        <div class="flow-desc">Logique séquentielle : Étape 1 par référence (filename split par <code>_</code>), Étape 2 par cle_32A + debtor + creditor inclus dans texte_72. Les match_id sont stables entre runs.</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">05</div>
+      <div class="flow-content">
+        <div class="flow-title">Copie physique</div>
+        <div class="flow-desc">Les paires matchées sont copiées dans MATCH/MMAA/JJMMAA/ avec un préfixe <code>match_id_</code>. Les fichiers non matchés depuis &gt;10 jours partent dans PAS_MATCH/.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 6. EXTRACTION -->
+<section id="extraction">
+  <span class="section-num">Section 06</span>
+  <h2>Extraction <em>PDF</em></h2>
+
+  <h3>Champs extraits — MX103/PACS.008</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Champ</th><th>Source</th><th>Format</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>montant</code></td><td>Entre le 1er et le 2e <code>#</code> du texte</td><td>chaîne</td></tr>
+        <tr><td><code>date</code></td><td><code>InterbankSettlementDate:</code> (regex)</td><td>AAMMJJ</td></tr>
+        <tr><td><code>adresse_debtor</code></td><td>Section Debtor → <code>Name:</code></td><td>chaîne sans espaces</td></tr>
+        <tr><td><code>adresse_creditor</code></td><td>Section Creditor → <code>Name:</code></td><td>chaîne sans espaces</td></tr>
+        <tr><td><code>cle_32A</code></td><td>concaténation date + montant nettoyé</td><td>chaîne numérique</td></tr>
+        <tr><td><code>reference_mx</code></td><td>4e position (index 4) du filename split par <code>_</code></td><td>chaîne minuscules</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Champs extraits — MT910</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Champ</th><th>Source</th><th>Format</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>date</code></td><td>Bloc <code>32A:</code> → ligne <code>Date:</code></td><td>AAMMJJ</td></tr>
+        <tr><td><code>montant</code></td><td>Bloc <code>32A:</code> → ligne <code>Amount:</code></td><td>chaîne</td></tr>
+        <tr><td><code>cle_32A</code></td><td>Chiffres concaténés du bloc <code>32A:</code></td><td>chaîne numérique</td></tr>
+        <tr><td><code>texte_72</code></td><td>Bloc <code>72:</code> (entre <code>Receiver Information</code> et délimiteur)</td><td>chaîne sans espaces</td></tr>
+        <tr><td><code>reference_mt</code></td><td>5e position (index 5) du filename split par <code>_</code></td><td>chaîne minuscules</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout warn">
+    <div class="callout-title">Robustesse</div>
+    <p>Les PDF qui échouent à l'extraction sont enregistrés dans <code>no_read_files.csv</code> et <strong>ne seront plus retentés</strong> aux runs suivants. Cette décision permet d'éviter de bloquer le pipeline sur un PDF corrompu.</p>
+  </div>
+</section>
+
+<!-- 7. MATCHING -->
+<section id="matching">
+  <span class="section-num">Section 07</span>
+  <h2>Logique <em>de matching</em></h2>
+  <p class="lead">
+    Le matching s'effectue en deux étapes séquentielles. Les paires trouvées à l'étape 1 sont retirées des pools avant l'étape 2 pour éviter tout double comptage.
+  </p>
+
+  <h3>Étape 1 — Par référence</h3>
+  <p>Jointure exacte sur les références extraites des noms de fichiers :</p>
+  <pre data-lang="python"><span class="c"># reference_mx (4e segment du nom PACS) == reference_mt (5e segment du nom MT)</span>
+<span class="f">reference_mx</span> == <span class="f">reference_mt</span>  <span class="c"># comparaison lowercase + trim</span></pre>
+  <p>Les paires trouvées reçoivent <code>match_type = "reference"</code>. Les fichiers MX et MT impliqués sont <strong>retirés</strong> des pools avant l'étape 2.</p>
+
+  <h3>Étape 2 — Par montant + acteurs</h3>
+  <p>Sur le pool restant, jointure sur <code>cle_32A</code> puis filtre :</p>
+  <pre data-lang="python"><span class="k">cle_32A_mx</span> == <span class="k">cle_32A_mt</span>
+<span class="k">AND</span> <span class="f">adresse_debtor</span> <span class="k">in</span> <span class="f">texte_72</span>
+<span class="k">AND</span> <span class="f">adresse_creditor</span> <span class="k">in</span> <span class="f">texte_72</span></pre>
+  <p>Les paires trouvées reçoivent <code>match_type = "32A_debtor"</code>.</p>
+
+  <div class="callout success">
+    <div class="callout-title">Match IDs stables</div>
+    <p>Les <code>match_id</code> sont des entiers incrémentaux <strong>conservés entre les runs</strong>. Une paire (cle_32A, filename_mx, filename_mt) conserve son ID à vie. Cela garantit l'idempotence en cas de relance après interruption.</p>
+  </div>
+
+  <h3>Protections contre les vides</h3>
+  <ul>
+    <li>Les <code>cle_32A</code> vides sont exclus du merge (évite le produit cartésien massif).</li>
+    <li>Les <code>reference</code> vides sont exclues du merge de l'étape 1.</li>
+    <li>Si <code>debtor</code>, <code>creditor</code> ou <code>texte_72</code> est vide → pas de match (protection contre <code>"" in texte</code>).</li>
+  </ul>
+</section>
+
+<!-- 8. STOCKAGE -->
+<section id="stockage">
+  <span class="section-num">Section 08</span>
+  <h2>Stockage <em>CSV</em></h2>
+  <p class="lead">Cinq fichiers CSV constituent l'état persistant du système. Ils permettent l'exécution incrémentale et l'audit.</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Fichier</th><th>Rôle</th><th>Clé naturelle</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>mx103_files.csv</code></td>
+          <td>Cache des MX103 déjà extraits</td>
+          <td><code>filename</code></td>
+        </tr>
+        <tr>
+          <td><code>mt910_files.csv</code></td>
+          <td>Cache des MT910 déjà extraits</td>
+          <td><code>filename</code></td>
+        </tr>
+        <tr>
+          <td><code>matches.csv</code></td>
+          <td>Paires (MX, MT) matchées</td>
+          <td><code>(cle_32A, filename_mx, filename_mt)</code></td>
+        </tr>
+        <tr>
+          <td><code>copied_files_log.csv</code></td>
+          <td>Log des fichiers déjà copiés (anti-doublon)</td>
+          <td><code>filepath</code> de destination</td>
+        </tr>
+        <tr>
+          <td><code>no_read_files.csv</code></td>
+          <td>Log des PDF illisibles (à skipper)</td>
+          <td><code>filepath</code> source</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout info">
+    <div class="callout-title">Lecture en chaîne</div>
+    <p>Tous les CSV sont lus avec <code>dtype=str</code> et <code>.fillna("")</code> pour éviter que pandas ne convertisse silencieusement les chiffres en float (ce qui produisait l'ancien bug <code>123456.0</code>).</p>
+  </div>
+</section>
+
+<!-- 9. FILTRAGE -->
+<section id="filtrage">
+  <span class="section-num">Section 09</span>
+  <h2>Filtrage <em>& performance</em></h2>
+  <p class="lead">
+    Sur lecteurs réseau, chaque appel <code>os.path.*</code> coûte cher. Le système applique trois niveaux d'élagage pour minimiser les appels.
+  </p>
+
+  <h3>Niveau 1 — Élagage par ctime (MMAA uniquement)</h3>
+  <p>Au premier niveau sous <code>Y:/</code> (les dossiers <code>MMAA</code> comme <code>0126</code>, <code>0226</code>...), le système vérifie <code>ctime &gt;= START_DATE</code>. Les dossiers plus anciens sont entièrement skippés.</p>
+
+  <div class="callout warn">
+    <div class="callout-title">Pourquoi seulement MMAA</div>
+    <p>Les sous-dossiers plus profonds (<code>entrant/</code>, <code>pacs.008/</code>) peuvent avoir un <code>ctime</code> ancien même s'ils contiennent des fichiers récents. Le filtre est appliqué uniquement au niveau MMAA car ces dossiers sont rigidement liés à une période temporelle.</p>
+  </div>
+
+  <h3>Niveau 2 — Élagage par filtre de chemin</h3>
+  <p>Les sous-dossiers qui ne peuvent pas mener à un chemin matchant un filtre sont skippés en cours de <code>os.walk</code> via <code>dirs[:]</code>.</p>
+
+  <h3>Niveau 3 — Filtres au niveau fichier</h3>
+  <p>Dans <code>extract_new_pdfs</code>, chaque fichier passe par une cascade :</p>
+  <ol>
+    <li>Extension <code>.pdf</code> ?</li>
+    <li>Déjà dans <code>mx103_files.csv</code> ou <code>mt910_files.csv</code> ?</li>
+    <li>Déjà dans <code>no_read_files.csv</code> ?</li>
+    <li>Chemin matchant un filtre (par segments) ?</li>
+  </ol>
+</section>
+
+<!-- 10. EXÉCUTION -->
+<section id="execution">
+  <span class="section-num">Section 10</span>
+  <h2>Exécution <em>& cron</em></h2>
+
+  <h3>Exécution manuelle</h3>
+  <pre data-lang="bash"><span class="c"># Depuis le dossier du projet</span>
+python main.py</pre>
+
+  <h3>Planification cron (Windows Task Scheduler)</h3>
+  <p>Pour un traitement continu, planifier une tâche toutes les 10 minutes :</p>
+  <pre data-lang="bash"><span class="c"># Action de la tâche planifiée</span>
+Programme : C:\Users\5368\bin\python-3.13.5\inst\python.exe
+Argument  : C:\chemin\vers\swift_processor\main.py
+Démarrer  : C:\chemin\vers\swift_processor</pre>
+
+  <div class="callout info">
+    <div class="callout-title">Durée typique</div>
+    <p><strong>Premier run</strong> : 5–15 minutes (selon volume initial)<br>
+    <strong>Runs incrémentaux</strong> : 30 secondes à 2 minutes pour 10–20 nouveaux fichiers</p>
+  </div>
+
+  <h3>Arborescence de sortie</h3>
+  <pre data-lang="text">OUTPUT_PATH/
+├── csv_data/
+│   ├── mx103_files.csv
+│   ├── mt910_files.csv
+│   ├── matches.csv
+│   ├── copied_files_log.csv
+│   └── no_read_files.csv
+├── MATCH/
+│   └── MMAA/
+│       └── JJMMAA/
+│           ├── 1_swift_pacs_xxx.pdf
+│           └── 1_swift_mt910_xxx.pdf
+├── PAS_MATCH/
+│   ├── MX/MMAA/JJMMAA/
+│   └── MT/MMAA/JJMMAA/
+└── process_swift.log</pre>
+</section>
+
+<!-- 11. LOGS -->
+<section id="logs">
+  <span class="section-num">Section 11</span>
+  <h2>Lecture <em>des logs</em></h2>
+  <p class="lead">
+    Le log <code>process_swift.log</code> est verbeux et structuré. Voici comment l'interpréter.
+  </p>
+
+  <h3>Exemple de run normal</h3>
+  <pre data-lang="log">2026-05-08 08:19:56 - INFO - ========== Démarrage ==========
+2026-05-08 08:19:56 - INFO - Filtre date : dossiers créés depuis 2026-01-01
+2026-05-08 08:19:56 - INFO - === Traitement MX103 / PACS.008 ===
+2026-05-08 08:31:35 - INFO - Index source Y:/ : 31803 fichier(s), 9 MMAA anciens élagués
+2026-05-08 08:31:38 - INFO - Filtrage : 58 retenu(s), 19132 déjà traité(s), 1 NO_read
+2026-05-08 08:31:38 - INFO - 58 nouveau(x) fichier(s) ajouté(s)
+2026-05-08 08:32:15 - INFO - === Matching ===
+2026-05-08 08:32:15 - INFO - Pool initial : 3058 MX, 3006 MT
+2026-05-08 08:32:16 - INFO - Étape 1 (référence) : 395 paire(s)
+2026-05-08 08:32:16 - INFO - Étape 2 (cle_32A + debtor) : 4 paire(s)
+2026-05-08 08:32:16 - INFO - Match IDs : 395 réutilisé(s), 4 nouveau(x)
+2026-05-08 08:32:16 - INFO - Total : 399 paire(s) matchée(s)
+2026-05-08 08:32:30 - INFO - ========== Fin ==========</pre>
+
+  <h3>Signaux importants à surveiller</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Signal</th><th>Interprétation</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>0 fichier(s) retenu(s)</code></td><td>Vérifier <code>START_DATE</code> et les chemins. Possiblement un problème de droits réseau.</td></tr>
+        <tr><td><code>Match IDs : 0 nouveau(x)</code></td><td>Aucune nouvelle paire — situation normale entre deux runs sans nouveau fichier.</td></tr>
+        <tr><td><code>Collision de match_id détectée</code></td><td>Deux paires distinctes avec même clé naturelle. Investiguer manuellement.</td></tr>
+        <tr><td><code>Erreur ouverture PDF</code></td><td>PDF corrompu ou inaccessible. Le fichier passe en NO_read.</td></tr>
+        <tr><td><code>Fichier source introuvable</code></td><td>Fichier supprimé entre l'indexation et la copie. Race condition à surveiller.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 12. MAINTENANCE -->
+<section id="maintenance">
+  <span class="section-num">Section 12</span>
+  <h2>Maintenance <em>& dépannage</em></h2>
+
+  <h3>Modifier les filtres de chemins</h3>
+  <p>Éditer <code>config.py</code>. La modification prend effet au prochain run. Les fichiers déjà extraits restent en CSV (pas de purge automatique).</p>
+
+  <h3>Repartir de zéro</h3>
+  <div class="callout danger">
+    <div class="callout-title">Procédure destructive</div>
+    <p>Pour reset complet : supprimer le dossier <code>csv_data/</code> et les dossiers <code>MATCH/</code> et <code>PAS_MATCH/</code>. Le prochain run re-indexera et re-traitera tout.</p>
+  </div>
+
+  <h3>Changer le schéma d'un CSV</h3>
+  <p>Si une colonne est ajoutée (ex : <code>adresse_creditor</code> récemment), il faut <strong>supprimer le CSV concerné</strong> avant de relancer. Sinon les anciennes lignes auront des colonnes manquantes.</p>
+
+  <h3>Décaler START_DATE</h3>
+  <pre data-lang="python"><span class="c"># config.py</span>
+<span class="k">START_DATE</span> = <span class="f">datetime</span>(<span class="k">2026</span>, <span class="k">3</span>, <span class="k">1</span>)  <span class="c"># nouvelle date</span></pre>
+  <p>Les dossiers MMAA antérieurs ne seront plus indexés. Les CSV existants ne sont pas purgés (les anciennes entrées restent).</p>
+
+  <h3>Auditer une paire</h3>
+  <ol>
+    <li>Ouvrir <code>matches.csv</code> et chercher le <code>match_id</code>.</li>
+    <li>Récupérer <code>filename_mx</code> et <code>filename_mt</code>.</li>
+    <li>Vérifier dans <code>mx103_files.csv</code> et <code>mt910_files.csv</code> les champs sources.</li>
+    <li>Vérifier la valeur de <code>match_type</code> pour savoir quel critère a déclenché le match.</li>
+  </ol>
+</section>
+
+<!-- 13. FAQ -->
+<section id="faq">
+  <span class="section-num">Section 13</span>
+  <h2>FAQ <em>technique</em></h2>
+
+  <h4>Que se passe-t-il si je relance le script alors qu'une instance tourne déjà ?</h4>
+  <p>Les deux instances tenteront d'écrire dans les mêmes CSV — risque de corruption. Pour un cron, prévoir un mécanisme de lock (non implémenté actuellement). En attendant, s'assurer que la durée d'un run est largement inférieure à l'intervalle du cron.</p>
+
+  <h4>Pourquoi les match_id sont-ils stables entre les runs ?</h4>
+  <p>Au démarrage du matching, le code lit <code>matches.csv</code> et construit un dictionnaire <code>{(cle_32A, filename_mx, filename_mt) → match_id}</code>. Une paire déjà connue garde son ID. Les nouvelles paires reçoivent <code>max(IDs existants) + 1</code>.</p>
+
+  <h4>Que se passe-t-il si un PDF est modifié après extraction ?</h4>
+  <p>Rien : le système ne re-extrait pas un fichier déjà présent dans <code>mx103_files.csv</code> / <code>mt910_files.csv</code>. Si une re-extraction est nécessaire, supprimer manuellement la ligne du CSV (la clé est <code>filename</code>).</p>
+
+  <h4>Comment auditer combien de paires sont matchées par chaque règle ?</h4>
+  <pre data-lang="python"><span class="k">import</span> pandas <span class="k">as</span> pd
+df = pd.read_csv(<span class="s">'matches.csv'</span>)
+<span class="f">print</span>(df[<span class="s">'match_type'</span>].value_counts())</pre>
+
+  <h4>Le système gère-t-il les noms de fichiers en doublon ?</h4>
+  <p>Dans <code>build_source_index</code>, si deux fichiers ont le même nom dans des dossiers différents, le premier rencontré gagne et un warning est loggé. Pas idéal mais rare en pratique.</p>
+
+  <h4>Comment ajouter un nouveau type de message (ex : MT940) ?</h4>
+  <p>Il faut : (1) ajouter une fonction d'extraction dans <code>pdf_extractor.py</code>, (2) ajouter un schéma CSV dans <code>storage.py</code>, (3) ajouter les filtres et chemins dans <code>config.py</code>, (4) appeler <code>process_message_type</code> dans <code>main.py</code> et adapter le matcher si nécessaire.</p>
+</section>
+
+</main>
+
+<footer class="page-footer">
+  SWIFT Processor &nbsp;·&nbsp; Documentation v1.0 &nbsp;·&nbsp; <span class="accent">Backup technique</span>
+</footer>
+
+</div>
+</div>
+
+<script>
+// === Highlight de la section active au scroll ===
+const sections = document.querySelectorAll('section[id]');
+const navLinks = document.querySelectorAll('.sidebar-nav a');
+
+function setActiveLink() {
+  const scrollPos = window.scrollY + 120;
+  let current = '';
+
+  sections.forEach(section => {
+    if (section.offsetTop <= scrollPos) {
+      current = section.id;
+    }
+  });
+
+  navLinks.forEach(link => {
+    link.classList.toggle('active', link.getAttribute('href') === '#' + current);
+  });
+}
+
+window.addEventListener('scroll', setActiveLink);
+window.addEventListener('load', setActiveLink);
+
+// === Toggle sidebar mobile ===
+const toggle = document.getElementById('menuToggle');
+const sidebar = document.getElementById('sidebar');
+const overlay = document.getElementById('overlay');
+
+toggle.addEventListener('click', () => {
+  sidebar.classList.toggle('open');
+  overlay.classList.toggle('show');
+});
+
+overlay.addEventListener('click', () => {
+  sidebar.classList.remove('open');
+  overlay.classList.remove('show');
+});
+
+// Ferme la sidebar quand on clique sur un lien (mobile)
+navLinks.forEach(link => {
+  link.addEventListener('click', () => {
+    if (window.innerWidth <= 1024) {
+      sidebar.classList.remove('open');
+      overlay.classList.remove('show');
+    }
+  });
+});
+</script>
+
+</body>
+</html>
