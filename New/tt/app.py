@@ -274,7 +274,10 @@ def page_consultation():
         with cB:
             st.plotly_chart(graphs.fig_canaux(df_f), use_container_width=True, key="chart_canaux")
         with cC:
-            st.plotly_chart(graphs.fig_typologie(df_f), use_container_width=True, key="chart_typologie_2")
+            if "Activité" in df_f.columns:
+                st.plotly_chart(graphs.fig_activite(df_f), use_container_width=True, key="chart_activite")
+            else:
+                st.info("Colonne 'Activité' absente des données importées.")
 
     with tab5:
         df_sla = db.get_sla_history()

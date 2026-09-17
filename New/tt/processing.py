@@ -48,7 +48,7 @@ def categorize_segment(segment):
 def load_data(df: pd.DataFrame) -> pd.DataFrame:
     df.columns = df.columns.astype(str).str.replace("\n", " ").str.strip()
 
-    cols_text = ["SLA Réclamation", "Typologie", "Segment", "Agence",
+    cols_text = ["SLA Réclamation", "Typologie", "Activité", "Segment", "Agence",
                  "Groupe de résolution", "Canal de réception", "Client"]
     for col in cols_text:
         if col in df.columns:
@@ -85,6 +85,8 @@ def load_data(df: pd.DataFrame) -> pd.DataFrame:
     df["GROUPE RESOLUTION"] = df["Groupe de résolution"].str.replace('SGCI', '', regex=False)
     df["AGENCE"] = df["Agence"].str[6:]
     df["Typologie"] = df.Typologie.str.upper().apply(unidecode.unidecode).str.replace("'", " ", regex=False)
+    if "Activité" in df.columns:
+        df["Activité"] = df["Activité"].str.upper().apply(unidecode.unidecode).str.replace("'", " ", regex=False)
     df["DATE_AUJOURDUI"] = datetime.today()
 
     time_columns = ["Time Technical Study", "Temps Infos complémentaires", "Temps Traitemen",

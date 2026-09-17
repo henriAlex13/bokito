@@ -112,6 +112,17 @@ def fig_typologie(data):
     return fig
 
 
+def fig_activite(data):
+    ac = data.groupby("Activité")["Réf. Réclamation"].count().reset_index(name='nombre').sort_values('nombre', ascending=False)
+    ac['lbl'] = ac['Activité'].apply(lambda x: add_line_breaks(x, max_chars=15))
+    fig = px.bar(ac, x='lbl', y='nombre', text='nombre', title="Répartition par activité",
+                 color='nombre', color_continuous_scale=px.colors.sequential.Sunset, template='plotly_dark')
+    fig.update_traces(textfont_size=12, marker_line_width=0)
+    fig.update_layout(coloraxis_showscale=False, xaxis_tickangle=0)
+    apply_layout(fig, yaxis=dict(visible=False), xaxis=dict(showgrid=False, zeroline=False, color="#8b949e", tickfont=dict(size=11)))
+    return fig
+
+
 def fig_delai(data):
     dl = data["DELAI_RECLAMATION"].value_counts().reset_index()
     dl.columns = ["d", "c"]

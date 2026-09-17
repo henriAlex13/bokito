@@ -8,7 +8,7 @@ DB_PATH = "reclamations_historique.db"
 # Note : SQLite ignore la casse pour l'unicité des noms de colonnes, donc on ne
 # garde que les versions dérivées (AGENCE, GROUPE RESOLUTION) et pas les brutes.
 COLUMNS = [
-    "Réf. Réclamation", "Client", "Typologie", "Segment", "SEGMENTATION",
+    "Réf. Réclamation", "Client", "Typologie", "Activité", "Segment", "SEGMENTATION",
     "AGENCE", "GROUPE RESOLUTION",
     "Canal de réception", "Créateur", "Caractère de la réclamation", "NATURE",
     "Date de création", "Date de résolution", "Annee", "Mois",
@@ -38,6 +38,14 @@ def init_db():
             PRIMARY KEY ("Réf. Réclamation", "SLA_ETAPE")
         )
     """)
+    con.commit()
+
+    # Migration : si la table existait déjà avant l'ajout d'une colonne (ex: Activité),
+    # CREATE TABLE IF NOT EXISTS ne la crée pas — on l'ajoute ici si elle manque.
+    existing_cols = {row[1] for row in con.execute('PRAGMA table_info(reclamations)').fetchall()}
+    for col in COLUMNS:
+        if col not in existing_cols:
+            con.execute(f'ALTER TABLE reclamations ADD COLUMN "{col}" TEXT')
     con.commit()
     con.close()
 
